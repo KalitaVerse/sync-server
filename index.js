@@ -39,7 +39,15 @@ function broadcast(roomCode, senderWs, message) {
   if (!room) return;
   for (const client of room) {
     if (client !== senderWs && client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      // Inject server timestamp so receivers can calculate true one-way delay
+      // without relying on synced device clocks
+      let stamped = message;
+      try {
+        const parsed = JSON.parse(message);
+        parsed.serverTime = Date.now();
+        stamped = JSON.stringify(parsed);
+      } catch (_) {}
+      client.send(stamped);
     }
   }
 }
