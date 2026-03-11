@@ -1,14 +1,13 @@
 "use strict";
-
 const WebSocket = require("ws");
 
 const PORT = process.env.PORT || 3000;
 const wss = new WebSocket.Server({ port: PORT });
 
-// rooms: { roomCode: Set<WebSocket> }
+// rooms: Map<roomCode, Set<WebSocket>>
 const rooms = new Map();
 
-// ── Heartbeat ────────────────────────────────────────────────────────
+// ── Heartbeat ─────────────────────────────────────────────────────────
 // Terminates ghost connections that dropped without sending a close frame
 const heartbeat = setInterval(() => {
   wss.clients.forEach((ws) => {
@@ -22,6 +21,8 @@ const heartbeat = setInterval(() => {
 }, 30_000);
 
 wss.on("close", () => clearInterval(heartbeat));
+
+// ── Helpers ───────────────────────────────────────────────────────────
 
 function cleanup(roomCode, ws) {
   const room = rooms.get(roomCode);
@@ -43,6 +44,8 @@ function broadcast(roomCode, senderWs, message) {
   }
 }
 
+// ── Connection handler ────────────────────────────────────────────────
+
 wss.on("connection", (ws) => {
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
@@ -51,8 +54,6 @@ wss.on("connection", (ws) => {
 
   ws.on("message", (raw) => {
     let data;
-
-    // Parse JSON safely
     try {
       data = JSON.parse(raw.toString());
     } catch (_) {
@@ -64,38 +65,28 @@ wss.on("connection", (ws) => {
 
     switch (type) {
       case "join": {
-        if (!room || typeof room !== "string" || room.length !== 6) {
-          ws.send(JSON.stringify({ type: "error", message: "Invalid room code" }));
+        if (!room || typeof room !== "string" || !/^\d{6}$/.test(room)) {
+          ws.send(JSON.stringify({ type: "error", message: "Invalid room code (must be 6 digits)" }));
           return;
         }
-
         // Leave previous room if already in one
         if (joinedRoom) {
           cleanup(joinedRoom, ws);
+          broadcast(joinedRoom, ws, JSON.stringify({
+            type: "member_left",
+            members: rooms.get(joinedRoom)?.size ?? 0,
+          }));
           console.log(`[room ${joinedRoom}] client left to join ${room}`);
         }
-
-        if (!rooms.has(room)) {
-          rooms.set(room, new Set());
-        }
-
+        if (!rooms.has(room)) rooms.set(room, new Set());
         rooms.get(room).add(ws);
         joinedRoom = room;
 
         const count = rooms.get(room).size;
         console.log(`[room ${room}] joined (${count} in room)`);
 
-        ws.send(JSON.stringify({
-          type: "joined",
-          room,
-          members: count,
-        }));
-
-        // Notify others in the room
-        broadcast(room, ws, JSON.stringify({
-          type: "member_joined",
-          members: count,
-        }));
+        ws.send(JSON.stringify({ type: "joined", room, members: count }));
+        broadcast(room, ws, JSON.stringify({ type: "member_joined", members: count }));
         break;
       }
 
@@ -117,14 +108,13 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    if (joinedRoom) {
-      cleanup(joinedRoom, ws);
-      broadcast(joinedRoom, ws, JSON.stringify({
-        type: "member_left",
-        members: rooms.get(joinedRoom)?.size ?? 0,
-      }));
-      console.log(`[room ${joinedRoom}] client disconnected`);
-    }
+    if (!joinedRoom) return;
+    cleanup(joinedRoom, ws);
+    broadcast(joinedRoom, ws, JSON.stringify({
+      type: "member_left",
+      members: rooms.get(joinedRoom)?.size ?? 0,
+    }));
+    console.log(`[room ${joinedRoom}] client disconnected`);
   });
 
   ws.on("error", (err) => {
@@ -135,7 +125,7 @@ wss.on("connection", (ws) => {
 
 console.log(`Sync server running on ws://localhost:${PORT}`);
 
-// Periodic log of active rooms
+// ── Periodic status log ───────────────────────────────────────────────
 setInterval(() => {
   if (rooms.size > 0) {
     console.log(`[status] ${rooms.size} active room(s):`);
