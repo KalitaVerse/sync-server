@@ -43,7 +43,7 @@ function broadcast(roomCode, senderWs, message) {
       // without relying on synced device clocks
       let stamped = message;
       try {
-        const parsed = JSON.parse(message);
+        const parsed = JSON.parse(message.toString());
         parsed.serverTime = Date.now();
         stamped = JSON.stringify(parsed);
       } catch (_) {}
