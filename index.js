@@ -68,7 +68,9 @@ wss.on("connection", (ws) => {
       ws.send(JSON.stringify({ type: "error", message: "Invalid JSON" }));
       return;
     }
-
+    
+    if (data.type === "ping") return;
+    
     const { type, room } = data;
 
     switch (type) {
