@@ -34,14 +34,24 @@ function cleanup(roomCode, ws) {
     console.log(`[room ${roomCode}] empty, removed`);
   }
 }
-
 function broadcast(roomCode, senderWs, message) {
   const roomData = rooms.get(roomCode);
   if (!roomData) return;
 
+  // Parse to inject official server time for latency calculation
+  let data;
+  try {
+    data = JSON.parse(message);
+    data.serverTime = Date.now(); 
+  } catch (e) {
+    return;
+  }
+
+  const outgoing = JSON.stringify(data);
+
   for (const client of roomData.members) {
     if (client !== senderWs && client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      client.send(outgoing);
     }
   }
 }
