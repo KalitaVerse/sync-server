@@ -103,7 +103,7 @@ wss.on("connection", (ws) => {
         // Tell the user they joined
         ws.send(JSON.stringify({ type: "joined", room, members: count }));
 
-        // NEW: If the room already has a song playing, send the state to the new member immediately
+        // If the room already has a song playing, send the state to the new member immediately
         if (roomData.state) {
           let syncMsg = { ...roomData.state, serverTime: Date.now() };
           ws.send(JSON.stringify(syncMsg));
@@ -113,6 +113,8 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      // Added sync_full here so the server accepts the new Flutter message type
+      case "sync_full":
       case "play":
       case "pause":
       case "resume":
@@ -125,7 +127,7 @@ wss.on("connection", (ws) => {
         // Store the state so future joiners sync immediately
         const currentRoom = rooms.get(joinedRoom);
         if (currentRoom) {
-          if (type === "play") {
+          if (type === "play" || type === "sync_full") {
             currentRoom.state = data; 
           } else if (currentRoom.state) {
             currentRoom.state = { ...currentRoom.state, ...data };
