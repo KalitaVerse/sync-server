@@ -122,13 +122,12 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        // NEW: Update the stored state so future joiners know what's happening
+        // Store the state so future joiners sync immediately
         const currentRoom = rooms.get(joinedRoom);
         if (currentRoom) {
           if (type === "play") {
-            currentRoom.state = data; // Store full song info
+            currentRoom.state = data; 
           } else if (currentRoom.state) {
-            // Update the existing state (e.g., change type to 'pause' or update 'pos')
             currentRoom.state = { ...currentRoom.state, ...data };
           }
         }
