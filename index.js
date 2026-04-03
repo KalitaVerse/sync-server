@@ -158,6 +158,17 @@ wss.on("connection", (ws) => {
         break;
       }
 
+      // ── Tic Tac Toe — relay only, no state stored ─────────────────
+      case "ttt_move":
+      case "ttt_reset": {
+        if (!joinedRoom) {
+          ws.send(JSON.stringify({ type: "error", message: "Not in a room" }));
+          return;
+        }
+        broadcast(joinedRoom, ws, JSON.stringify(data));
+        break;
+      }
+
       default:
         ws.send(JSON.stringify({
           type: "error",
